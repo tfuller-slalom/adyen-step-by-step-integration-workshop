@@ -21,6 +21,9 @@ public class DependencyInjectionConfiguration {
         // Step 4
         var config = new Config();
 
+        config.setApiKey(applicationConfiguration.getAdyenApiKey());
+        config.setEnvironment(Environment.TEST);
+
         return new Client(config);
     }
 
