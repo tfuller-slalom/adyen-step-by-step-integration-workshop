@@ -3,8 +3,11 @@ package com.adyen.workshop.configurations;
 import com.adyen.Client;
 import com.adyen.Config;
 import com.adyen.enums.Environment;
+import com.adyen.service.checkout.RecurringApi;
 import com.adyen.service.checkout.PaymentsApi;
 import com.adyen.util.HMACValidator;
+import com.adyen.workshop.services.TokenService;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -33,7 +36,17 @@ public class DependencyInjectionConfiguration {
     }
 
     @Bean
+    RecurringApi recurringApi(){
+        return new RecurringApi(client());
+    }
+
+    @Bean
     HMACValidator hmacValidator() {
         return new HMACValidator();
+    }
+
+    @Bean
+    TokenService tokenService() {
+        return new TokenService();
     }
 }

@@ -3,6 +3,8 @@ package com.adyen.workshop.controllers;
 import com.adyen.model.RequestOptions;
 import com.adyen.model.checkout.*;
 import com.adyen.workshop.configurations.ApplicationConfiguration;
+import com.adyen.workshop.services.TokenService;
+import com.adyen.service.checkout.RecurringApi;
 import com.adyen.service.checkout.PaymentsApi;
 import com.adyen.service.exception.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,10 +30,14 @@ public class ApiController {
 
     private final ApplicationConfiguration applicationConfiguration;
     private final PaymentsApi paymentsApi;
+    private final TokenService tokenService;
+    private final RecurringApi recurringApi;
 
-    public ApiController(ApplicationConfiguration applicationConfiguration, PaymentsApi paymentsApi) {
+    public ApiController(ApplicationConfiguration applicationConfiguration, PaymentsApi paymentsApi, TokenService tokenService, RecurringApi recurringApi) {
         this.applicationConfiguration = applicationConfiguration;
         this.paymentsApi = paymentsApi;
+        this.tokenService = tokenService;
+        this.recurringApi = recurringApi;
     }
 
     // Step 0
@@ -135,5 +141,72 @@ public class ApiController {
                 break;
         }
         return new RedirectView(redirectURL + "?reason=" + paymentsDetailsResponse.getResultCode());
+    }
+
+    @PostMapping("/api/subscription-create")
+    public ResponseEntity<PaymentResponse> createSubscription(@RequestBody PaymentRequest body) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var shopperReference = UUID.randomUUID().toString();
+        tokenService.setShopperReference(shopperReference);
+
+        var req = new PaymentRequest()
+            .reference(orderId)
+            .amount(new Amount()
+                .value(0L)
+                .currency("EUR"))
+            .storePaymentMethod(true)
+            .recurringProcessingModel(PaymentRequest.RecurringProcessingModelEnum.SUBSCRIPTION)
+            .shopperReference(shopperReference)
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount())
+            .paymentMethod(body.getPaymentMethod())
+            .channel(PaymentRequest.ChannelEnum.WEB)
+            .returnUrl("https://animated-bassoon-p7ppr6q6j4vh7p7w-8080.app.github.dev/handleShopperRedirect");
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = paymentsApi.payments(req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/subscription-payment")
+    public ResponseEntity<PaymentResponse> chargeSubscriptionPayment() throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var tokenId = tokenService.getTokenId();
+
+        var cardDetails = new CardDetails()
+            .storedPaymentMethodId(tokenId)
+            .type(CardDetails.TypeEnum.SCHEME);
+
+        var req = new PaymentRequest()
+            .reference(orderId)
+            .amount(new Amount()
+                .value(9998L)
+                .currency("EUR"))
+            .paymentMethod(new CheckoutPaymentMethod(cardDetails))
+            //.storePaymentMethod(true)
+            .recurringProcessingModel(PaymentRequest.RecurringProcessingModelEnum.SUBSCRIPTION)
+            .shopperReference(tokenService.getShopperReference())
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount())
+            .shopperInteraction(PaymentRequest.ShopperInteractionEnum.CONTAUTH);
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = paymentsApi.payments(req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/subscription-cancel")
+    public ResponseEntity<PaymentResponse> cancelSubscription() throws IOException, ApiException {
+        var tokenId = tokenService.getTokenId();
+        var shopperReference = tokenService.getShopperReference();
+        var merchantAccount = applicationConfiguration.getAdyenMerchantAccount();
+
+        recurringApi.deleteTokenForStoredPaymentDetails(tokenId, shopperReference, merchantAccount);
+
+        return ResponseEntity.ok().body(null);
     }
 }

@@ -33,7 +33,7 @@ async function startCheckout() {
 
                 try {
                     const req = JSON.stringify(state.data);
-                    const { action, order, resultCode } = await createPayment(req);
+                    const { action, order, resultCode } = await createSubscription(req);
                     
                     if (!resultCode) {
                         console.warn("Unknown result code");
@@ -104,6 +104,16 @@ async function startCheckout() {
 
 function createPayment(req) {
     return fetch("/api/payments", {
+            method: "POST",
+            body: req,
+            headers: {
+                "Content-Type": "application/json",
+            }
+        }).then(response => response.json());
+}
+
+function createSubscription(req) {
+    return fetch("/api/subscription-create", {
             method: "POST",
             body: req,
             headers: {

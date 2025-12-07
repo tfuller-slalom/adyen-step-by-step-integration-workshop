@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.adyen.workshop.services.TokenService;
 
 import java.io.IOException;
 import java.security.SignatureException;
@@ -29,10 +30,13 @@ public class WebhookController {
 
     private final HMACValidator hmacValidator;
 
+    private final TokenService tokenService;
+
     @Autowired
-    public WebhookController(ApplicationConfiguration applicationConfiguration, HMACValidator hmacValidator) {
+    public WebhookController(ApplicationConfiguration applicationConfiguration, HMACValidator hmacValidator, TokenService tokenService) {
         this.applicationConfiguration = applicationConfiguration;
         this.hmacValidator = hmacValidator;
+        this.tokenService = tokenService;
     }
 
     // Step 16 - Validate the HMAC signature using the ADYEN_HMAC_KEY
@@ -53,6 +57,13 @@ public class WebhookController {
 
             // Success, log it for now
             log.info("Received webhook with event {}", item.toString());
+
+            switch (item.getEventCode()) {
+                case "RECURRING_CONTRACT":
+                    var token = item.getAdditionalData().get("recurring.recurringDetailReference");
+                    this.tokenService.setTokenId(token);
+                    break;
+            }
 
             return ResponseEntity.accepted().build();
         } catch (SignatureException e) {
