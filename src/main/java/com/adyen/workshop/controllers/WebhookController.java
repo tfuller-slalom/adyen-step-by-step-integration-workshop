@@ -55,14 +55,41 @@ public class WebhookController {
                 return ResponseEntity.unprocessableEntity().build();
             }
 
-            // Success, log it for now
-            log.info("Received webhook with event {}", item.toString());
-
             switch (item.getEventCode()) {
                 case "RECURRING_CONTRACT":
+                    log.info("Received a recurring contract event");
                     var token = item.getAdditionalData().get("recurring.recurringDetailReference");
                     this.tokenService.setTokenId(token);
                     break;
+                case "AUTHORISATION":
+                    log.info("Payment was authorized!! {}", item.getPspReference());
+                    break;
+                case "AUTHORISATION_ADJUSTMENT":
+                    log.info("Amount was adjusted!! {}", item.getPspReference());
+                    break;
+                case "CAPTURE":
+                    log.info("Payment was captured!! {}", item.getPspReference());
+                    break;
+                case "CAPTURE_FAILED":
+                    log.warn("Payment capture failed!! {}", item.getPspReference());
+                    break;
+                case "TECHNICAL_CANCEL":
+                    log.info("Technical cancel was performed on payment!! {}", item.getPspReference());
+                    break;
+                case "CANCELLATION":
+                    log.info("Payment was cancelled!! {}", item.getPspReference());
+                    break;
+                case "REFUND":
+                    log.info("Payment was refunded!! {}", item.getPspReference());
+                    break;
+                case "REFUNDED_REVERSED":
+                    log.warn("Payment refund was reversed!! {}", item.getPspReference());
+                    break;
+                case "REFUND_FAILED":
+                    log.warn("Payment refund failed!! {}", item.getPspReference());
+                    break;
+                default:
+                    log.info("Received webhook with event {}", item.toString());
             }
 
             return ResponseEntity.accepted().build();

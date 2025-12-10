@@ -4,6 +4,7 @@ import com.adyen.Client;
 import com.adyen.Config;
 import com.adyen.enums.Environment;
 import com.adyen.service.checkout.RecurringApi;
+import com.adyen.service.checkout.ModificationsApi;
 import com.adyen.service.checkout.PaymentsApi;
 import com.adyen.util.HMACValidator;
 import com.adyen.workshop.services.TokenService;
@@ -38,6 +39,11 @@ public class DependencyInjectionConfiguration {
     @Bean
     RecurringApi recurringApi(){
         return new RecurringApi(client());
+    }
+
+    @Bean
+    ModificationsApi modificationsApi(){
+        return new ModificationsApi(client());
     }
 
     @Bean

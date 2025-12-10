@@ -5,6 +5,7 @@ import com.adyen.model.checkout.*;
 import com.adyen.workshop.configurations.ApplicationConfiguration;
 import com.adyen.workshop.services.TokenService;
 import com.adyen.service.checkout.RecurringApi;
+import com.adyen.service.checkout.ModificationsApi;
 import com.adyen.service.checkout.PaymentsApi;
 import com.adyen.service.exception.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,12 +33,14 @@ public class ApiController {
     private final PaymentsApi paymentsApi;
     private final TokenService tokenService;
     private final RecurringApi recurringApi;
+    private final ModificationsApi modificationsApi;
 
-    public ApiController(ApplicationConfiguration applicationConfiguration, PaymentsApi paymentsApi, TokenService tokenService, RecurringApi recurringApi) {
+    public ApiController(ApplicationConfiguration applicationConfiguration, PaymentsApi paymentsApi, TokenService tokenService, RecurringApi recurringApi, ModificationsApi modificationsApi) {
         this.applicationConfiguration = applicationConfiguration;
         this.paymentsApi = paymentsApi;
         this.tokenService = tokenService;
         this.recurringApi = recurringApi;
+        this.modificationsApi = modificationsApi;
     }
 
     // Step 0
@@ -208,5 +211,104 @@ public class ApiController {
         recurringApi.deleteTokenForStoredPaymentDetails(tokenId, shopperReference, merchantAccount);
 
         return ResponseEntity.ok().body(null);
+    }
+
+    @PostMapping("/api/preauthorisation")
+    public ResponseEntity<PaymentResponse> preauth(@RequestBody PaymentRequest body) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var shopperReference = UUID.randomUUID().toString();
+        tokenService.setShopperReference(shopperReference);
+
+        Map<String, String> additionalData = new HashMap<>();
+        additionalData.put("authorisationType", "PreAuth"); 
+
+        var req = new PaymentRequest()
+            .reference(orderId)
+            .amount(new Amount()
+                .value(1000L)
+                .currency("EUR"))
+            .shopperReference(shopperReference)
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount())
+            .paymentMethod(body.getPaymentMethod())
+            .channel(PaymentRequest.ChannelEnum.WEB)
+            .returnUrl("https://animated-bassoon-p7ppr6q6j4vh7p7w-8080.app.github.dev/handleShopperRedirect")
+            .additionalData(additionalData);
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = paymentsApi.payments(req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/modify-amount/{pspReference}")
+    public ResponseEntity<PaymentAmountUpdateResponse> modifyAmount(@PathVariable String pspReference) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var req = new PaymentAmountUpdateRequest()
+            .industryUsage(PaymentAmountUpdateRequest.IndustryUsageEnum.DELAYEDCHARGE)
+            .reference(orderId)
+            .amount(new Amount()
+                .value(6600L)
+                .currency("EUR"))
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount());
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = modificationsApi.updateAuthorisedAmount(pspReference, req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/capture/{pspReference}")
+    public ResponseEntity<PaymentCaptureResponse> capture(@PathVariable String pspReference) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var req = new PaymentCaptureRequest()
+            .reference(orderId)
+            .amount(new Amount()
+                .currency("EUR")
+                .value(6600L))
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount());
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = modificationsApi.captureAuthorisedPayment(pspReference, req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/cancel/{pspReference}")
+    public ResponseEntity<PaymentCancelResponse> cancel(@PathVariable String pspReference) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var req = new PaymentCancelRequest()
+            .reference(orderId)
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount());
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = modificationsApi.cancelAuthorisedPaymentByPspReference(pspReference, req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
+    }
+
+    @PostMapping("/api/refund/{pspReference}")
+    public ResponseEntity<PaymentRefundResponse> refund(@PathVariable String pspReference) throws IOException, ApiException {
+        var orderId = UUID.randomUUID().toString();
+
+        var req = new PaymentRefundRequest()
+            .reference(orderId)
+            .amount(new Amount()
+                .currency("EUR")
+                .value(6600L))
+            .merchantAccount(applicationConfiguration.getAdyenMerchantAccount());
+
+        var idempotencyKey = UUID.randomUUID().toString();
+
+        var res = modificationsApi.refundCapturedPayment(pspReference, req, new RequestOptions().idempotencyKey(idempotencyKey));
+
+        return ResponseEntity.ok().body(res);
     }
 }
